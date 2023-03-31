@@ -1,7 +1,26 @@
+/*! @mainpage Example 3.5 
+ * @date Thursday, March 30, 2023
+ * @authors Agustin de Vedia & Ulises Montenegro
+ *
+ * @note TP03 Implemented in class.
+ *
+ * @brief root/
+ *
+ *  mbed-os                 : Mbed code to abstract and facilitate development.
+ *  .gitignore              : Files to be ignored by Git.
+ *  arm_book_lib.h          : Includes & definitions to help develop proyects from the book.
+ *  compile_commands.json   : Compile commands.
+ *  main.cpp                : Main program.
+ *  mbed-os.lib             : Mbed repository.
+ *
+ */
+
 //=====[Libraries]=============================================================
 
 #include "mbed.h"
 #include "arm_book_lib.h"
+#include <stdio.h>
+#include <string.h>
 
 //=====[Defines]===============================================================
 
@@ -15,6 +34,8 @@
 
 //=====[Declaration and initialization of public global objects]===============
 
+// @note DigitalIn / DigitalOut classes analysed in 'Example 1.1'
+
 DigitalIn enterButton(BUTTON1);
 DigitalIn alarmTestButton(D2);
 DigitalIn aButton(D4);
@@ -27,10 +48,23 @@ DigitalOut alarmLed(LED1);
 DigitalOut incorrectCodeLed(LED3);
 DigitalOut systemBlockedLed(LED2);
 
-DigitalInOut sirenPin(PE_10);
+DigitalInOut sirenPin(PE_10); // @note Class DigitalInOut allows for easy switch between In & Out in the same switch. Using methods input() and output() one can select the Pin Mode
 
-UnbufferedSerial uartUsb(USBTX, USBRX, 115200);
+// @note Constructor implemented in "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/UnbufferedSerial.h"
+UnbufferedSerial uartUsb(USBTX, USBRX, 115200); // Default baudrate: 9600
+/* UART methods used
+*   readable()  : Determines if there is a character available to read (/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/SerialBase.h)
+*   read()      : Method to read recieved n bytes and returns # of bytes read.
+*   write()     : Method to transmit n bytes from a file and returns # of bytes writen.
+*/
 
+/*
+*   @note Diference between printf() and uartUsb::write()
+*   printf()    : funcion writen in C which sends writes n bytes to a file. Implemented in "stdio.h" standard library.
+*   write()     : UnbufferedSerial method writen in C++ which . Implemented in the UnbufferedSerial Class.
+*/
+
+// @note Class Constuctor "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/AnalogIn.h"
 AnalogIn potentiometer(A0);
 AnalogIn lm35(A1);
 
@@ -108,7 +142,7 @@ void alarmActivationUpdate()
     static int lm35SampleIndex = 0;
     int i = 0;
 
-    lm35ReadingsArray[lm35SampleIndex] = lm35.read();
+    lm35ReadingsArray[lm35SampleIndex] = lm35.read(); // @note Reads the input voltage using function analogin_read() (declared in /home/studio/workspace/example-3.5-tp_03/mbed-os/hal/include/hal/analogin_api.h)
     lm35SampleIndex++;
     if ( lm35SampleIndex >= NUMBER_OF_AVG_SAMPLES) {
         lm35SampleIndex = 0;
@@ -195,6 +229,7 @@ void alarmDeactivationUpdate()
 
 void uartTask()
 {
+    printf("UART Task initiated.");
     char receivedChar = '\0';
     char str[100];
     int stringLength;
@@ -302,14 +337,14 @@ void uartTask()
         case 'P':
             potentiometerReading = potentiometer.read();
             sprintf ( str, "Potentiometer: %.2f\r\n", potentiometerReading );
-            stringLength = strlen(str);
+            stringLength = 100; // HARDCODEADO DV strlen(str);
             uartUsb.write( str, stringLength );
             break;
 
         case 'c':
         case 'C':
             sprintf ( str, "Temperature: %.2f \xB0 C\r\n", lm35TempC );
-            stringLength = strlen(str);
+            stringLength = 100; // HARDCODEADO DV strlen(str);
             uartUsb.write( str, stringLength );
             break;
 
@@ -317,7 +352,7 @@ void uartTask()
         case 'F':
             sprintf ( str, "Temperature: %.2f \xB0 F\r\n", 
                 celsiusToFahrenheit( lm35TempC ) );
-            stringLength = strlen(str);
+            stringLength = 100; // HARDCODEADO DV strlen(str);
             uartUsb.write( str, stringLength );
             break;
 
