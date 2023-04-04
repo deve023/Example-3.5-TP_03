@@ -2,10 +2,12 @@
  * @date Thursday, March 30, 2023
  * @authors Agustin de Vedia & Ulises Montenegro
  *
+ * @file main.cpp Main program script. It's pretty much all here.
+ *
  * @note TP03 Implemented in class.
  *
- * @brief root/
- *
+ * @brief
+ * root/
  *  mbed-os                 : Mbed code to abstract and facilitate development.
  *  .gitignore              : Files to be ignored by Git.
  *  arm_book_lib.h          : Includes & definitions to help develop proyects from the book.
@@ -17,94 +19,186 @@
 
 //=====[Libraries]=============================================================
 
-#include "mbed.h"
-#include "arm_book_lib.h"
-#include <stdio.h>
-#include <string.h>
+#include "mbed.h" ///< Mbed code to abstract and facilitate development.
+#include "arm_book_lib.h" ///< Includes & definitions to help develop proyects from the book.
+#include <stdio.h> ///< C standard library.
+#include <string.h> ///< C String library.
 
 //=====[Defines]===============================================================
 
-#define NUMBER_OF_KEYS                           4
-#define BLINKING_TIME_GAS_ALARM               1000
-#define BLINKING_TIME_OVER_TEMP_ALARM          500
-#define BLINKING_TIME_GAS_AND_OVER_TEMP_ALARM  100
-#define NUMBER_OF_AVG_SAMPLES                   100
-#define OVER_TEMP_LEVEL                         50
-#define TIME_INCREMENT_MS                       10
+#define NUMBER_OF_KEYS                          4 ///< Number of keys in the numerical keyboard.
+#define BLINKING_TIME_GAS_ALARM                 1000 ///< Blinking frecuency for the gas alarm.
+#define BLINKING_TIME_OVER_TEMP_ALARM           500 ///< Blinking frecuency for the over temperature alarm.
+#define BLINKING_TIME_GAS_AND_OVER_TEMP_ALARM   100 ///< Blinking frecuency for the alarm when gas and overtemperature are detected simultaneously.
+#define NUMBER_OF_AVG_SAMPLES                   100 ///< Number of samples to average when sensing temperature.
+#define OVER_TEMP_LEVEL                         50 ///< Parameter to calibrate trigger temperature.
+#define TIME_INCREMENT_MS                       10 ///< Time step for mainloop.
 
 //=====[Declaration and initialization of public global objects]===============
 
 // @note DigitalIn / DigitalOut classes analysed in 'Example 1.1'
 
+/**
+* 'Enter' button is board button BUTTON1.
+*/
 DigitalIn enterButton(BUTTON1);
+
+/**
+* Button to test alarm. Connected to pin D2.
+*/
 DigitalIn alarmTestButton(D2);
+
+/**
+* Keyboard A button connected to pin D4.
+*/
 DigitalIn aButton(D4);
+
+/**
+* Keyboard B button connected to pin D5.
+*/
 DigitalIn bButton(D5);
+
+/**
+* Keyboard C button connected to pin D6.
+*/
 DigitalIn cButton(D6);
+
+/**
+* Keyboard D button connected to pin D7.
+*/
 DigitalIn dButton(D7);
+
+/**
+* Gas sensor connected to pin PE_12.
+*/
 DigitalIn mq2(PE_12);
 
+/**
+* Alarm LED is board LED LED1.
+*/
 DigitalOut alarmLed(LED1);
+
+/**
+* 'Incorrect code' LED is board LED LED1.
+*/
 DigitalOut incorrectCodeLed(LED3);
+
+/**
+* 'System blocked' LED is board LED LED1.
+*/
 DigitalOut systemBlockedLed(LED2);
 
-DigitalInOut sirenPin(PE_10); // @note Class DigitalInOut allows for easy switch between In & Out in the same switch. Using methods input() and output() one can select the Pin Mode
+/**
+* Siren connected to pin PE_10. To sound the alarm it is set as output. When the alarm is inactive, it is set as input.
+* This is managed by the methods input() and output().
+*/
+DigitalInOut sirenPin(PE_10);
 
-// @note Constructor implemented in "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/UnbufferedSerial.h"
-UnbufferedSerial uartUsb(USBTX, USBRX, 115200); // Default baudrate: 9600
-/* UART methods used
+// @note Constructor defined in "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/UnbufferedSerial.h"
+/**
+* Set UART communication.
+* Constructor implemented in "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/UnbufferedSerial.h".
+* Default baudrate: 9600.
+* UART methods used in main.cpp script:
 *   readable()  : Determines if there is a character available to read (/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/SerialBase.h)
 *   read()      : Method to read recieved n bytes and returns # of bytes read.
 *   write()     : Method to transmit n bytes from a file and returns # of bytes writen.
+*
+* @note Diference between printf() and uartUsb::write()
+*  printf()    : funcion writen in C which sends writes n bytes to a file. Implemented in "stdio.h" standard library.
+*  write()     : UnbufferedSerial method writen in C++ which . Implemented in the UnbufferedSerial Class.
 */
+UnbufferedSerial uartUsb(USBTX, USBRX, 115200); // Default baudrate: 9600
 
-/*
-*   @note Diference between printf() and uartUsb::write()
-*   printf()    : funcion writen in C which sends writes n bytes to a file. Implemented in "stdio.h" standard library.
-*   write()     : UnbufferedSerial method writen in C++ which . Implemented in the UnbufferedSerial Class.
+/**
+* Potenciometer connected to analog pin A0.
+* AnalogIn constructor defined in "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/AnalogIn.h"
 */
-
-// @note Class Constuctor "/home/studio/workspace/example-3.5-tp_03/mbed-os/drivers/include/drivers/AnalogIn.h"
 AnalogIn potentiometer(A0);
+
+/**
+* LM35 temperature sensor connected to analog pin A1.
+*/
 AnalogIn lm35(A1);
 
 //=====[Declaration and initialization of public global variables]=============
 
-bool alarmState    = OFF;
-bool incorrectCode = false;
-bool overTempDetector = OFF;
+bool alarmState    = OFF; ///< Bool that indicates the alarm state.
+bool incorrectCode = false; ///< Bool that indicates if the code entered is incorrect.
+bool overTempDetector = OFF; ///< Bool that indicates if the LM35 sensor temperature is greater than the trigger temperature.
 
-int numberOfIncorrectCodes = 0;
-int buttonBeingCompared    = 0;
-int codeSequence[NUMBER_OF_KEYS]   = { 1, 1, 0, 0 };
-int buttonsPressed[NUMBER_OF_KEYS] = { 0, 0, 0, 0 };
-int accumulatedTimeAlarm = 0;
+int numberOfIncorrectCodes = 0; ///< Number of times in a row an incorrect code has been entered. Once the correct code is entered, this resets to 0.
+int buttonBeingCompared    = 0; ///< Indicates the button being compared.
+int codeSequence[NUMBER_OF_KEYS]   = { 1, 1, 0, 0 }; ///< Secret code sequence.
+int buttonsPressed[NUMBER_OF_KEYS] = { 0, 0, 0, 0 }; ///< Pressed buttons.
+int accumulatedTimeAlarm = 0; ///< Time the alarm output has been ON. This is to keep track of the alarm frequency.
 
-bool gasDetectorState          = OFF;
-bool overTempDetectorState     = OFF;
+bool gasDetectorState          = OFF; ///< Bool that indicates if the gas is being detected.
+bool overTempDetectorState     = OFF; ///< Bool that indicates if an over temperature is being detected.
 
-float potentiometerReading = 0.0;
-float lm35ReadingsAverage  = 0.0;
-float lm35ReadingsSum      = 0.0;
-float lm35ReadingsArray[NUMBER_OF_AVG_SAMPLES];
-float lm35TempC            = 0.0;
+float potentiometerReading = 0.0; ///< Potenciometer reading.
+float lm35ReadingsAverage  = 0.0; ///< Average of the temperature readings in a small time interval.
+float lm35ReadingsSum      = 0.0; ///< Sum of the temperature readings in a small time interval.
+float lm35ReadingsArray[NUMBER_OF_AVG_SAMPLES]; ///< LM35 temperature readings in a small time interval.
+float lm35TempC            = 0.0; ///< Temperature sensed in the Celsius scale.
 
 //=====[Declarations (prototypes) of public functions]=========================
 
+/**
+* Initialices input parameters.
+*/
 void inputsInit();
+
+/**
+* Initialices output parameters.
+*/
 void outputsInit();
 
+/**
+* Updates the Alarm state to ON if necessary.
+*/
 void alarmActivationUpdate();
+
+/**
+* Updates the Alarm state to OFF if the code entered is correct.
+*/
 void alarmDeactivationUpdate();
 
+/**
+* Updates the UART communication. Sends & receives data.
+*/
 void uartTask();
+
+/**
+* Outputs trough UART comunication the available commands for the user.
+*/
 void availableCommands();
+
+/**
+* Checks entered code and secret code and outputs True or False accordingly.
+* @param[out] areEqual boolean variable indicating if the codes are equal or not.
+*/
 bool areEqual();
+
+/**
+* Converts temperature from the Celsius scale to the Fahrenheit scale.
+* @param[in] tempInCelsiusDegrees Temperature in the Celsius scale.
+* @param[out] tempInFahrenheitDegrees Temperature in the Fahrenheit scale.
+*/
 float celsiusToFahrenheit( float tempInCelsiusDegrees );
+
+/**
+* Translates the analog reading from the LM35 sensor to a temperature value in the celsius scale.
+* @param[in] analogReading Analog reading from the LM35 sensor.
+* @param[out] tempInCelsiusDegrees Temperature in the Celsius scale.
+*/
 float analogReadingScaledWithTheLM35Formula( float analogReading );
 
 //=====[Main function, the program entry point after power on or reset]========
 
+/**
+* Main program function.
+*/
 int main()
 {
     inputsInit();
